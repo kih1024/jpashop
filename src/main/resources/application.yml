@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:h2:tcp://localhost/~/jpashop
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create
+    properties:
+      hibernate:
+      # show_sql: true
+      format_sql: true
+
+logging.level:
+  org.hibernate.SQL: debug
+#  아래는 쿼리 파라미터를 ?를 보이는것을 정확한 숫자로 보이게 해준다. 알수는 있지만 그래도 ? 로 표시됨. 그래서 외부 라이브러리를 사용한다.
+#  org.hibernate.type: trace
