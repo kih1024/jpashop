@@ -1,6 +1,8 @@
 package jpabook.jpashop.domain;
 
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import javax.persistence.*;
@@ -12,6 +14,7 @@ import java.util.List;
 @Table(name = "orders") // 테이블 바꿔주고 위해서 이 어노테이션을 써줌. 원래대로라면 order로 들어가는데 sql의 order by와 충돌이 날수 있음.
 @Getter
 @Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Order {
 
     @Id
@@ -40,7 +43,7 @@ public class Order {
     // 여기서 xToOne 의 관계는 기본이 EAGER라서 LAZY로 바꾸고 oneToX는 기본이 LAZY 바꿀 필요 x
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL) // OrderItem.order에 의해서 매핑이 된다는 뜻.
-    // cascade = CascadeType.ALL를 하면 orderItem에다가 아이템을 넣어두고 order를 저장하면 orderItems도 같이 저장이 된다.
+    // cascade = CascadeType.ALL를 하면 orderItems에다가 아이템을 넣어두고 order를 persist(디비에 반영)하면 orderItem도 같이 persist(디비 반영) 된다.
     // 즉, 3개의 아이템을 넣었다면
     // persist(oderItemA)
     // persist(oderItemB)
@@ -58,6 +61,7 @@ public class Order {
 
     @OneToOne(fetch = FetchType.LAZY ,cascade = CascadeType.ALL) // 일대일 관계에서는 외래키를 order에 넣어도 되고 delivery에 넣어도 되지만, 그래도 접근이 많은 테이블에 넣는게 낫다.
     // 따라서 연관관계의 주인을 외래키와 가까운 order에 둔다.
+    // Order가 persist 되면 이어서 Delivery도 persist 된다.
     @JoinColumn(name = "delivery_id")
     private Delivery delivery;
 
@@ -86,5 +90,52 @@ public class Order {
     public void setDelivery(Delivery delivery) {
         this.delivery = delivery;
         delivery.setOrder(this);
+    }
+
+    //==생성 메서드==// 앞으로 주문 생성을 변경할때는 이것만 변경하면 된다. 바깥에서 set 하는것보다 여기서 주문 생성을 완결 시킨다.
+    // 보면 도메인 모델 안에 핵심 비지니스 로직이 있다.
+    // 이것은 객체 지향적 특성을 적극 활용하는 도메인 모델 패턴의 예시이다. pdf 참고
+    // jpa와 같은 orm 방식은 도메인 모델 패턴을 많이 쓰고
+    // 기존에 쓰던 우리가 sql을 보내는 방식은,
+    // 즉, createOrder 안에 있는 로직처럼
+    // 도메인 객체에 있는 비즈니스 로직들을 서비스 서비스 계층에 쓰고 거기에 sql 쿼리문 까지 같이 써주는 방식은 트랜잭션 스크립트 패턴 방식 이다.
+    public static Order createOrder(Member member, Delivery delivery, OrderItem... orderItems) {
+        Order order = new Order();
+        order.setMember(member);
+        order.setDelivery(delivery);
+        for (OrderItem orderItem : orderItems) {
+            order.addOrderItem(orderItem);
+        }
+        order.setStatus(OrderStatus.ORDER);
+        order.setLocalDate(LocalDateTime.now());
+        return order;
+    }
+
+    //==비즈니스 로직==//
+    /**
+     * 주문 취소
+     */
+    public void cancel() {
+        if (delivery.getStatus() == DeliveryStatus.COMP) {
+            throw new IllegalStateException("이미 배송완료된 상품은 취소가 불가능합니다.");
+        }
+
+        this.setStatus(OrderStatus.CANCEL);
+        for (OrderItem orderItem : orderItems) {
+            orderItem.cancel();
+        }
+    }
+
+    //==조회 로직==//
+    /**
+     * 전체 주문 가격 조회
+     */
+    public int getTotalPrice() {
+        int totalPrice = 0;
+        for (OrderItem orderItem : orderItems) {
+            int price = orderItem.getTotalPrice();
+            totalPrice += price;
+        }
+        return totalPrice;
     }
 }
